@@ -8,9 +8,11 @@ on:
     branches:
       - main
 
-# Принудительно переводим все экшены на Node.js 24, чтобы убрать предупреждение
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+permissions:
+  contents: write
 
 jobs:
   generate-diagrams:
@@ -26,28 +28,31 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
-    # Устанавливаем только Graphviz (он весит мало и ставится без ошибок)
     - name: Install GraphViz
       run: |
         sudo apt-get update
         sudo apt-get install -y graphviz
 
-    # Скачиваем официальный рабочий JAR-файл PlantUML напрямую с GitHub
     - name: Download PlantUML
       run: curl -L -o plantuml.jar https://github.com
 
-    # Запускаем генерацию через скачанный Java-файл
+    # Умная генерация: проверяем файлы перед запуском Java
     - name: Generate Diagrams
-      run: java -jar plantuml.jar -v -tpng "**/*.puml"
+      run: |
+        # Ищем файлы .puml, которые содержат хоть какой-то текст
+        if grep -q "@startuml" **/*.puml 2>/dev/null; then
+          echo "Найдены валидные файлы диаграмм. Запуск генерации..."
+          java -jar plantuml.jar -v -tpng "**/*.puml"
+        else
+          echo "Валидные файлы .puml не найдены или они пустые. Пропускаем генерацию."
+        fi
 
     - name: Commit Diagrams
       run: |
         git config --local user.email "github-actions[bot]@://github.com"
         git config --local user.name "github-actions[bot]"
         
-        # Удаляем сам запускатор, чтобы он не попал в ваш репозиторий
         rm -f plantuml.jar
-        
         git add "**/*.png"
         
         if git diff --staged --quiet; then
