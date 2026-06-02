@@ -49,15 +49,22 @@ jobs:
 
     - name: Commit Diagrams
       run: |
-        git config --local user.email "github-actions[bot]@://github.com"
+        git config --local user.email "github-actions[bot]@users.noreply.github.com"
         git config --local user.name "github-actions[bot]"
         
         rm -f plantuml.jar
-        git add "**/*.png"
         
-        if git diff --staged --quiet; then
-          echo "Нет новых изменений в диаграммах для коммита."
+        # Умный поиск картинок: проверяем, существует ли хотя бы один файл .png
+        if ls **/*.png 1> /dev/null 2>&1; then
+          echo "Найдены сгенерированные картинки. Добавляем в коммит..."
+          git add "**/*.png"
+          
+          if git diff --staged --quiet; then
+            echo "Нет новых изменений в диаграммах для коммита."
+          else
+            git commit -m "Automated diagram generation [skip ci]"
+            git push origin main
+          fi
         else
-          git commit -m "Automated diagram generation [skip ci]"
-          git push origin main
+          echo "Сгенерированные картинки .png не найдены. Нечего коммитить."
         fi
