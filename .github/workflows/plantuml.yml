@@ -8,6 +8,10 @@ on:
     branches:
       - main
 
+# Принудительно переводим все экшены на Node.js 24, чтобы убрать предупреждение
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   generate-diagrams:
     runs-on: ubuntu-latest
@@ -22,21 +26,33 @@ jobs:
         distribution: 'temurin'
         java-version: '17'
 
-    - name: Install PlantUML
-      run: sudo apt-get install plantuml
-
-    - name: Generate Diagrams
+    # Устанавливаем только Graphviz (он весит мало и ставится без ошибок)
+    - name: Install GraphViz
       run: |
-        plantuml diagrams/context/*.puml
-        plantuml diagrams/container/*.puml
-        plantuml diagrams/component/*.puml
-        plantuml diagrams/code/*.puml
+        sudo apt-get update
+        sudo apt-get install -y graphviz
+
+    # Скачиваем официальный рабочий JAR-файл PlantUML напрямую с GitHub
+    - name: Download PlantUML
+      run: curl -L -o plantuml.jar https://github.com
+
+    # Запускаем генерацию через скачанный Java-файл
+    - name: Generate Diagrams
+      run: java -jar plantuml.jar -v -tpng "**/*.puml"
 
     - name: Commit Diagrams
       run: |
-        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.email "github-actions[bot]@://github.com"
         git config --local user.name "github-actions[bot]"
-        git add diagrams/**/*.png
-        git commit -m "Automated diagram generation"
-        git push origin main
-      if: success()
+        
+        # Удаляем сам запускатор, чтобы он не попал в ваш репозиторий
+        rm -f plantuml.jar
+        
+        git add "**/*.png"
+        
+        if git diff --staged --quiet; then
+          echo "Нет новых изменений в диаграммах для коммита."
+        else
+          git commit -m "Automated diagram generation [skip ci]"
+          git push origin main
+        fi
