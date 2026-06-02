@@ -22,30 +22,17 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
 
-    - name: Set up Java
-      uses: actions/setup-java@v4
-      with:
-        distribution: 'temurin'
-        java-version: '17'
-
-    - name: Install GraphViz
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y graphviz
-
-    - name: Download PlantUML
-      run: curl -L -o plantuml.jar https://github.com
-
-    # Надежная генерация через команду find (найдет файлы на любой глубине папок)
+    # Запуск генерации через официальный Docker-контейнер PlantUML
     - name: Generate Diagrams
       run: |
         echo "Ищем файлы диаграмм в проекте..."
-        FILES=$(find . -name "*.puml" -o -name "*.PUML")
+        # Находим все папки, где лежат файлы .puml
+        FOLDERS=$(find . -name "*.puml" -exec dirname {} \; | sort -u)
         
-        if [ -n "$FILES" ]; then
-          echo "Найдены файлы диаграмм. Запуск генерации..."
-          # Запускаем генерацию конкретно для каждого найденного файла
-          echo "$FILES" | xargs java -jar plantuml.jar -v -tpng
+        if [ -n "$FOLDERS" ]; then
+          echo "Диаграммы найдены. Запуск официального Docker PlantUML..."
+          # Запускаем контейнер, монтируем текущую папку проекта и рендерим картинки
+          docker run --rm -v $(pwd):/data plantuml/plantuml -v -tpng "**/*.puml"
         else
           echo "Файлы .puml не найдены в репозитории."
         fi
@@ -56,9 +43,6 @@ jobs:
         git config --local user.email "github-actions[bot]@://github.com"
         git config --local user.name "github-actions[bot]"
         
-        rm -f plantuml.jar
-        
-        # Ищем все сгенерированные файлы картинок через find
         PNG_FILES=$(find . -name "*.png" -o -name "*.PNG")
         
         if [ -n "$PNG_FILES" ]; then
