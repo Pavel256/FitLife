@@ -36,28 +36,34 @@ jobs:
     - name: Download PlantUML
       run: curl -L -o plantuml.jar https://github.com
 
-    # Умная генерация: проверяем файлы перед запуском Java
+    # Надежная генерация через команду find (найдет файлы на любой глубине папок)
     - name: Generate Diagrams
       run: |
-        # Ищем файлы .puml, которые содержат хоть какой-то текст
-        if grep -q "@startuml" **/*.puml 2>/dev/null; then
-          echo "Найдены валидные файлы диаграмм. Запуск генерации..."
-          java -jar plantuml.jar -v -tpng "**/*.puml"
+        echo "Ищем файлы диаграмм в проекте..."
+        FILES=$(find . -name "*.puml" -o -name "*.PUML")
+        
+        if [ -n "$FILES" ]; then
+          echo "Найдены файлы диаграмм. Запуск генерации..."
+          # Запускаем генерацию конкретно для каждого найденного файла
+          echo "$FILES" | xargs java -jar plantuml.jar -v -tpng
         else
-          echo "Валидные файлы .puml не найдены или они пустые. Пропускаем генерацию."
+          echo "Файлы .puml не найдены в репозитории."
         fi
 
+    # Надежный коммит сгенерированных картинок
     - name: Commit Diagrams
       run: |
-        git config --local user.email "github-actions[bot]@users.noreply.github.com"
+        git config --local user.email "github-actions[bot]@://github.com"
         git config --local user.name "github-actions[bot]"
         
         rm -f plantuml.jar
         
-        # Умный поиск картинок: проверяем, существует ли хотя бы один файл .png
-        if ls **/*.png 1> /dev/null 2>&1; then
-          echo "Найдены сгенерированные картинки. Добавляем в коммит..."
-          git add "**/*.png"
+        # Ищем все сгенерированные файлы картинок через find
+        PNG_FILES=$(find . -name "*.png" -o -name "*.PNG")
+        
+        if [ -n "$PNG_FILES" ]; then
+          echo "Найдены картинки .png. Добавляем в Git..."
+          echo "$PNG_FILES" | xargs git add
           
           if git diff --staged --quiet; then
             echo "Нет новых изменений в диаграммах для коммита."
@@ -66,5 +72,5 @@ jobs:
             git push origin main
           fi
         else
-          echo "Сгенерированные картинки .png не найдены. Нечего коммитить."
+          echo "Новые картинки не были сгенерированы."
         fi
